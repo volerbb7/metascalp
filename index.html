@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Открыть в MetaScalp</title>
+<style>
+body{font:16px system-ui,Arial,sans-serif;background:#101622;color:#f5f7fb;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px;box-sizing:border-box}main{max-width:470px;width:100%;background:#1d2737;padding:26px;border-radius:18px;box-sizing:border-box}button{width:100%;padding:14px 18px;border:0;border-radius:11px;background:#4195ff;color:#fff;font-size:17px;font-weight:700;cursor:pointer}button:disabled{opacity:.55}p{line-height:1.5}small{color:#b7c5d8}#status{white-space:pre-wrap;overflow-wrap:anywhere}code{font-size:18px;color:#91d2ff}
+</style>
+</head>
+<body><main><h2>📊 MetaScalp</h2><p>Открыть стакан и график для <code id="symbol"></code> на MEXC Futures.</p><button id="open">Открыть в MetaScalp</button><p id="status" role="status"></p><small>Работает только на том компьютере, где уже запущен MetaScalp с подключением MEXC Futures и связкой панелей 001. Открывайте ссылку в браузере этого компьютера, а не на телефоне. Подтверждайте локальное сетевое разрешение браузера, если появится запрос.</small></main>
+<script>
+'use strict';
+const params = new URLSearchParams(location.search);
+const symbol = (params.get('ticker') || '').trim().toUpperCase();
+const ok = /^[A-Z0-9_-]{2,60}$/.test(symbol);
+const button = document.querySelector('#open'), status = document.querySelector('#status');
+document.querySelector('#symbol').textContent = ok ? symbol : 'не указан';
+if(!ok){button.disabled = true; status.textContent='В ссылке нужен тикер: ?ticker=BTC_USDT';}
+const withTimeout = (url,opts={}) => fetch(url,{...opts,signal:AbortSignal.timeout(1300)});
+button.addEventListener('click', async () => {
+ if(!ok)return;
+ button.disabled=true; status.textContent='Ищу локальный MetaScalp…';
+ try {
+   let port=null;
+   for(let p=17845;p<=17855;p++){
+     try{
+       const r=await withTimeout(`http://127.0.0.1:${p}/ping`);
+       if(r.ok && (await r.json()).app==='MetaScalp'){port=p;break;}
+     }catch(e){}
+   }
+   if(port===null) throw Error('MetaScalp не найден. Проверьте, что он запущен, и разрешите доступ браузера к локальным устройствам. Попробуйте открыть страницу во внешнем браузере на компьютере.');
+   const r=await withTimeout(`http://127.0.0.1:${port}/api/change-ticker`,{
+     method:'POST', headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({tickerPattern:`MEXC:${symbol}.p`,binding:'001'})
+   });
+   const data=await r.json();
+   if(!r.ok || data.status!=='ok') throw Error(data.error||`HTTP ${r.status}: переключение не подтверждено`);
+   status.textContent='✅ Команда переключения отправлена. Проверьте стакан и график MetaScalp.';
+ } catch(e){status.textContent='❌ '+e.message;}
+ finally{button.disabled=false;}
+});
+</script></body></html>
